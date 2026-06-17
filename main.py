@@ -2,11 +2,12 @@
 """
 We are using a small REST server to control our robot.
 """
-from flask import Flask, render_template
+from flask import Flask, render_template, Response
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import math
 import numpy as np
+import cv2
 import Rover
 from multiprocessing import Process, Queue
 
@@ -20,6 +21,26 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret'
 CORS(app)
 socketio = SocketIO(app)
+
+
+camera = cv2.VideoCapture(0) # 0 for webcam, or path to video file
+
+def gen_frames():
+    while True:
+        success, frame = camera.read()
+        if not success:
+            break
+        else:
+            # Encode frame as JPEG
+            ret, buffer = cv2.imencode('.jpg', frame)
+            frame = buffer.tobytes()
+            # Yield frame with multipart boundary headers
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @app.route('/')
